@@ -1,0 +1,31 @@
+GET http://localhost:8000/usuarios
+
+###
+POST http://localhost:8000/usuarios
+Content-Type: application/json
+
+{
+    "nombres":"Jackques",
+    "apellidos":"Webster",
+    "email":"Jack@gmail.com",
+    "foto":""
+}
+
+###
+PUT http://localhost:8000/usuarios/1
+Content-Type: application/json
+
+{
+    "nombres":"Calvin",
+    "apellidos":"Harris",
+    "email":"CH@gmail.com"
+}
+
+###
+DELETE  http://localhost:8000/usuarios
+Content-Type: application/json
+
+{
+    "idUsuario":"1"
+
+}
