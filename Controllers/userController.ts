@@ -32,25 +32,10 @@ export const postUser = async(ctx:any)=>{
             return;
         }
 
-        const body = await request.body({ type: "form-data" }).value;
-        const formData = new FormData();
-
-        for (const[key, value] of Object.entries(body.fields)){
-            formData.append(key, String(value));
-        }
-
-        if (body.files && body.files.length > 0) {
-                for (const file of body.files) {
-                    if (file.name === "foto" && file.content) {
-                    const blob = new Blob([file.content], { type: file.contentType });
-                    const fileObj = new File([blob], file.originalName!, { type: file.contentType });
-                    formData.append("foto", fileObj);
-                }
-            }
-        }
+        const body = await request.body.formData();
 
         const usuario = new Usuario();
-        const result = await usuario.InsertarUsuario(formData);
+        const result = await usuario.InsertarUsuario(body);
 
         response.status = 200;
         response.body = {

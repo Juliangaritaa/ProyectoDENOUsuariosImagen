@@ -26,7 +26,7 @@ export class Usuario{
     public async InsertarUsuario(formData: FormData):Promise<{ success:boolean;message:string; usuario?: Record<string, unknown> }>{
 
         try {
-                
+
             const nombre = formData.get("nombre")?.toString();
             const apellido = formData.get("apellido")?.toString();
             const email = formData.get("email")?.toString();
@@ -51,7 +51,7 @@ export class Usuario{
                 nombre, 
                 apellido, 
                 email,
-                foto,
+                fileName,
             ]);
     
             if (result && typeof result.affectedRows === "number" && result.affectedRows > 0) {
