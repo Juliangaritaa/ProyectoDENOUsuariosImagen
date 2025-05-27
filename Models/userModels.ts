@@ -18,9 +18,14 @@ export class Usuario{
         this._idUsuario = idUsusario;
     }
 
-    public async SeleccionarUsuarios(): Promise<UsuarioData[]>{
-        const {rows: users} = await conexion.execute('select * from usuario');
-        return users as UsuarioData[];
+    public async SeleccionarUsuarios(): Promise<UsuarioData[]> {
+        try {
+            const { rows: users } = await conexion.execute('SELECT * FROM usuario');
+            return users as UsuarioData[];
+        } catch (error) {
+            console.error("Error al obtener los usuarios:", error);
+            return [];
+        }
     }
 
     public async InsertarUsuario(formData: FormData):Promise<{ success:boolean;message:string; usuario?: Record<string, unknown> }>{
@@ -71,36 +76,45 @@ export class Usuario{
         }
     }
 
-    public async ActualizarUsuario(): Promise<{ success: boolean; message: string; usuario?: Record<string, unknown>}>{
+    public async ActualizarUsuario(formData: FormData): Promise<{ success: boolean; message: string; usuario?: Record<string, unknown> }> {
         try {
-            if (!this._objUsuario) {
-                throw new Error("No se ha proporcionado un objeto de usuario valido");
-            }
+            const idUsuario = formData.get("idUsuario")?.toString();
+            const nombre = formData.get("nombre")?.toString();
+            const apellido = formData.get("apellido")?.toString();
+            const email = formData.get("email")?.toString();
+            const foto = formData.get("foto");
 
-            const {idUsuario, nombre, apellido, email} = this._objUsuario;
-
-            if (!idUsuario) {
-                throw new Error("Se requiere el id del usuario para actualizar");
-            }
-
-            if (!nombre || !apellido || !email) {
-                throw new Error("Faltan campos requeridos para actualizar la informacion");
+            if (!idUsuario || !nombre || !apellido || !email) {
+                throw new Error("Faltan campos requeridos para actualizar la información");
             }
 
             await conexion.execute("START TRANSACTION");
 
-            const result = await conexion.execute(
-                'UPDATE usuario SET nombre = ?, apellido = ?, email = ? WHERE idUsuario = ?', [nombre, apellido, email, idUsuario]
-            );
+            let updateQuery = 'UPDATE usuario SET nombre = ?, apellido = ?, email = ?';
+            const params = [nombre, apellido, email];
+
+            if (foto instanceof File) {
+                const uploadDir = "./uploads";
+                await ensureDir(uploadDir);
+
+                const fileName = `${Date.now()}_${foto.name}`;
+                const filePath = `${uploadDir}/${fileName}`;
+
+                const content = new Uint8Array(await foto.arrayBuffer());
+                await Deno.writeFile(filePath, content);
+
+                updateQuery += ', foto = ?';
+                params.push(fileName);
+            }
+
+            updateQuery += ' WHERE idUsuario = ?';
+            params.push(idUsuario);
+
+            const result = await conexion.execute(updateQuery, params);
 
             if (result && typeof result.affectedRows === "number" && result.affectedRows > 0) {
-                const [usuario] = await conexion.query(
-                    'SELECT * FROM usuario WHERE idUsuario = ?',
-                    [idUsuario]
-                );
-
+                const [usuario] = await conexion.query('SELECT * FROM usuario WHERE idUsuario = ?', [idUsuario]);
                 await conexion.execute("COMMIT");
-
                 return {
                     success: true,
                     message: "Usuario actualizado correctamente",
@@ -110,7 +124,7 @@ export class Usuario{
                 await conexion.execute("ROLLBACK");
                 return {
                     success: false,
-                    message: "No se encontró el usuario o no se realizaron los cambios."
+                    message: "No se encontró el usuario o no se realizaron cambios."
                 };
             }
 
@@ -118,20 +132,16 @@ export class Usuario{
             await conexion.execute("ROLLBACK");
 
             if (error instanceof z.ZodError) {
-                return { success:false, message: error.message };
+                return { success: false, message: error.message };
             } else {
-                return { success:false, message: "Error interno del servidor" };
+                return { success: false, message: "Error interno del servidor" };
             }
         }
     }
 
-    public async EliminarUsuario(): Promise<{ success: boolean; message: string; usuario?: Record<string, unknown>}>{
+    public async EliminarUsuario(formData: FormData): Promise<{ success: boolean; message: string }> {
         try {
-            if (!this._objUsuario) {
-                throw new Error("No se ha proporcionado un objeto de usuario valido");
-            }
-
-            const {idUsuario} = this._objUsuario;
+            const idUsuario = formData.get("idUsuario")?.toString();
 
             if (!idUsuario) {
                 throw new Error("Se requiere el id del usuario para eliminar");
@@ -139,10 +149,7 @@ export class Usuario{
 
             await conexion.execute("START TRANSACTION");
 
-            const [existingUser] = await conexion.query(
-                'SELECT * FROM usuario WHERE idUsuario = ?',
-                [idUsuario]
-            );
+            const [existingUser] = await conexion.query('SELECT * FROM usuario WHERE idUsuario = ?', [idUsuario]);
 
             if (!existingUser || existingUser.length === 0) {
                 await conexion.execute("ROLLBACK");
@@ -152,16 +159,23 @@ export class Usuario{
                 };
             }
 
-            const result = await conexion.execute(
-                'DELETE FROM usuario WHERE idUsuario = ?', 
-                [idUsuario]
-            );
+            const foto = existingUser[0].foto;
+
+            const result = await conexion.execute('DELETE FROM usuario WHERE idUsuario = ?', [idUsuario]);
 
             if (result && typeof result.affectedRows === "number" && result.affectedRows > 0) {
+                if (foto) {
+                    try {
+                        await Deno.remove(`./uploads/${foto}`);
+                    } catch (_) {
+                        // Imagen no encontrada o ya eliminada; continuar
+                    }
+                }
+
                 await conexion.execute("COMMIT");
                 return {
                     success: true,
-                    message:"Usuario eliminado correctamente"
+                    message: "Usuario eliminado correctamente"
                 };
             } else {
                 await conexion.execute("ROLLBACK");
@@ -175,11 +189,10 @@ export class Usuario{
             await conexion.execute("ROLLBACK");
 
             if (error instanceof z.ZodError) {
-                return { success:false, message: error.message };
+                return { success: false, message: error.message };
             } else {
-                return { success:false, message: "Error interno del servidor" };
+                return { success: false, message: "Error interno del servidor" };
             }
         }
     }
-
 }
