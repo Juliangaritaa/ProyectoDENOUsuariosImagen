@@ -1,26 +1,54 @@
 // deno-lint-ignore-file
 import { Usuario } from "../Models/userModels.ts";
 import { ensureDir } from "../Dependencies/dependencias.ts";
+import { send } from "https://deno.land/x/oak@v12.6.1/mod.ts";
 
-export const getUsers = async(ctx:any)=>{
-    const {response} = ctx;
+export const getUsers = async(ctx: any) => {
+    const { response } = ctx;
 
-    try{
+    try {
         const objUsuario = new Usuario();
         const listaUsuarios = await objUsuario.SeleccionarUsuarios();
+        
+        // Construir URLs completas para las fotos
+        const usuariosConFotos = listaUsuarios.map(usuario => ({
+            ...usuario,
+            foto: usuario.foto 
+                ? `http://localhost:8000/uploads/${usuario.foto}` 
+                : null
+        }));
+        
         response.status = 200;
         response.body = {
-            success:true,
-            data:listaUsuarios,
+            success: true,
+            data: usuariosConFotos,
         }
     } catch (error) {
         response.status = 400;
         response.body = {
-            success:false,
+            success: false,
             msg: "Error al procesar la solicitud",
             errors: error
         }
     }
+};
+
+export const staticFiles = async (ctx: any, next: any) => {
+    const { request, response } = ctx;
+    
+    if (request.url.pathname.startsWith("/uploads/")) {
+        try {
+            await send(ctx, request.url.pathname, {
+                root: "./",
+                index: "index.html",
+            });
+            return;
+        } catch {
+
+        }
+    }
+    
+    await next();
 };
 
 export const postUser = async(ctx:any)=>{
